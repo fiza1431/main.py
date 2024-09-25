@@ -1,91 +1,128 @@
-import streamlit as st
+import streamlit as st # type: ignore # type: ignore
+import pandas as pd # type: ignore
+import plotly.express as px # type: ignore
+import os
+import json
 import datetime
-import pandas as pd
-import time
-import matplotlib.pyplot as plt
-import numpy as np
-from PIL import Image
-
-#st.title('Hello World')
-
-#take input from user
-#name = st.text_input('Enter your name')
-#st.write('Hello', name)
-
-#Demo of dropdown box in streamlit
-#option = st.selectbox('Which number do you like best?', [1, 2, 3, 4, 5])
-#st.write('You selected:', option)
-
-#Demo of radio button in streamlit
-#option = st.radio('Which number do you like best?', [1, 2, 3, 4, 5])
-#st.write('You selected:', option)
-
-#Demo of checkbox in streamlit
-#if st.checkbox('Show/Hide'):
-#   st.write('Showing or Hiding Widget')
-
-#Demo of slider in streamlit
-#age = st.slider('How old are you?', 0, 130, 25)
-#st.write('I am:', age, 'years old')
-
-#Demo of button in streamlit
-#if st.button('Say Hello'):
-#    st.write('Hello')
-
-#Demo of textarea in streamlit
-#message = st.text_area('Enter your message')
-#st.write('You entered:', message)
-
-#Demo of date input in streamlit
-#today = st.date_input('Today is:', datetime.datetime.now())
-#st.write('Today is:', today)
-
-#Demo of time input in streamlit
-#time = st.time_input('The time is:', datetime.time())
-#st.write('The time is:', time)
-#st.write('Current time is:', datetime.datetime.now())
-
-#Demo of file uploader in streamlit & display the uploaded file in a csv
-#uploaded_file = st.file_uploader('Choose a file', type = ['csv'])
-#if uploaded_file is not None:
-#    data = pd.read_csv(uploaded_file)
-#    st.write(data)
-
-#Demo of progress bar in streamlit
-#my_bar = st.progress(0)
-#for precentage_complete in range(100):
-#    time.sleep(0.1)
-#    my_bar.progress(precentage_complete + 1)
-
-#Demo of sidebar in streamlit
-#st.sidebar.write('This is a sidebar')
-#st.sidebar.button('Press me')
-
-#Demo of expander in streamlit
-#with st.expander('See more'):
-#    st.write('This is hidden by default')
-
-#Demo of columns in streamlit
-#col1, col2, col3 = st.columns(3)
-#col1.write('This is column 1')
-#col2.write('This is column 2')
-#col3.write('This is column 3')
-
-#Demo of plot in streamlit
-#x = np.random.randn(100)
-#fig, ax = plt.subplots()
-#ax.hist(x, bins = 20)
-#st.pyplot(fig)
-
-#Demo of image in streamlit
-#image = Image.open("C:/Users/Chetana/OneDrive/Pictures/Screenshots 1/Screenshot (30).png")
-#st.image(image, caption = 'Genshin Event', use_column_width = True)
-
-#Demo of yt video in streamlit
-#st.video('video link here')
-
-#Demo of local video in streamlit
-st.video("C:/Users/Chetana/Videos/Captures/Wuthering Waves   2024-07-24 12-58-24.mp4", 'r')
-
-#CSS or HTML
-#st.markup('')
+ 
+# Constants
+USER_DATA_FILE = 'users.json'
+ 
+# Helper Functions
+def load_user_data():
+    if os.path.exists(USER_DATA_FILE):
+        with open(USER_DATA_FILE, 'r') as f:
+            return json.load(f)
+    return {}
+ 
+def save_user_data(users):
+    with open(USER_DATA_FILE, 'w') as f:
+        json.dump(users, f)
+ 
+def create_user_folder(email):
+    if not os.path.exists(email):
+        os.mkdir(email)
+ 
+def save_marks(email, marks_df):
+    csv_path = os.path.join(email, 'marks.csv')
+    marks_df.to_csv(csv_path, index=False)
+ 
+def generate_charts(marks_df):
+    # Bar Chart for Average Marks
+    avg_marks = marks_df.mean().reset_index()
+    avg_marks.columns = ['Subject', 'Average Marks']
+    bar_fig = px.bar(avg_marks, x ='Subject', y ='Average Marks', title="Average Marks Per Subject")
+ 
+    # Line Chart for Marks
+    line_fig = px.line(marks_df.T, title="Marks Per Subject", labels={"value": "Marks", "index": "Subject"})
+ 
+    # Pie Chart for Marks Distribution
+    total_marks = marks_df.sum().reset_index()
+    total_marks.columns = ['Subject', 'Total Marks']
+    pie_fig = px.pie(total_marks, names = 'Subject', values = 'Total Marks', title = "Marks Distribution")
+ 
+    return bar_fig, line_fig, pie_fig
+ 
+# Pages
+def sign_up():
+    st.title("Sign Up Page")
+    name = st.text_input("Name")
+    phone = st.text_input("Phone")
+    dob = st.date_input("DOB", min_value = datetime.datetime(1999, 1, 1))
+    email = st.text_input("Email")
+    password = st.text_input("Password", type="password")
+   
+    if st.button("Sign Up"):
+        users = load_user_data()
+        if email in users:
+            st.error("User with this email already exists!")
+        else:
+            users[email] = {"name": name, "phone": phone, "dob": str(dob), "password": password}
+            save_user_data(users)
+            create_user_folder(email)
+            st.success("User registered successfully! Please log in.")
+ 
+def login():
+    st.title("Login Page")
+    email = st.text_input("Email")
+    password = st.text_input("Password", type="password")
+   
+    if st.button("Login"):
+        users = load_user_data()
+        if email in users and users[email]["password"] == password:
+            st.session_state["user"] = email
+            st.success("Logged in successfully!")
+            st.experimental_rerun()
+        else:
+            st.error("Invalid email or password")
+ 
+def enter_marks():
+    st.title(f"Welcome {st.session_state['user']}")
+   
+    subjects = ["Maths", "Science", "English", "History", "Geography", "Physics", "Chemistry"]
+    marks = {}
+   
+    for subject in subjects:
+        marks[subject] = st.slider(f"Choose your marks for {subject}", 0, 100, 0)
+ 
+    if st.button("Submit"):
+        marks_df = pd.DataFrame([marks])
+        save_marks(st.session_state["user"], marks_df)
+        st.success("Marks submitted successfully!")
+ 
+def view_reports():
+    st.title("Your Reports are Ready!")
+    email = st.session_state["user"]
+    csv_path = os.path.join(email, 'marks.csv')
+ 
+    if os.path.exists(csv_path):
+        marks_df = pd.read_csv(csv_path)
+ 
+        # Generate charts
+        bar_fig, line_fig, pie_fig = generate_charts(marks_df)
+ 
+        # Display charts
+        st.plotly_chart(bar_fig)
+        st.plotly_chart(line_fig)
+        st.plotly_chart(pie_fig)
+    else:
+        st.error("No marks data found!")
+ 
+# Main App Logic
+st.sidebar.title("Navigation")
+page = st.sidebar.selectbox("Go to", ["Sign Up", "Log In", "Enter Marks", "View Reports"])
+ 
+if "user" not in st.session_state:
+    st.session_state["user"] = None
+ 
+if page == "Sign Up":
+    sign_up()
+elif page == "Log In":
+    login()
+elif page == "Enter Marks" and st.session_state["user"]:
+    enter_marks()
+elif page == "View Reports" and st.session_state["user"]:
+    view_reports()
+else:
+    st.error("Please log in to access this page.")
+ 
